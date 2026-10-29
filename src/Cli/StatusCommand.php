@@ -34,10 +34,15 @@ final class StatusCommand extends Command
         $this->options->addStoreOptions($this);
         $this->addOption(self::FORMAT, null, InputOption::VALUE_REQUIRED, 'table or json', 'table');
         $this->setHelp(<<<'HELP'
-            Reads the state directory only. <info>--format=json</info> writes one JSON object: run_id, state, active,
-            rolled_back_from, started_at, ring_fingerprint_before, ring_fingerprint, intended_ring_fingerprint,
-            source_indices, new_index, last_ring_write_at, probe_skipped, config_cache_cleaned, last_scan, overrides,
-            history and next_commands. run_id and state are null when the store has no run.
+            Reads the state directory and the key ring of app/etc/env.php; writes nothing. It warns when an
+            unfinished run's env.php holds neither the ring the run recorded nor the one it announced: a deploy or
+            another writer put back an older copy.
+
+            <info>--format=json</info> writes one JSON object: run_id, state, active, rolled_back_from, started_at,
+            ring_fingerprint_before, ring_fingerprint, intended_ring_fingerprint, deployment_ring_fingerprint (the
+            ring env.php holds now), deployment_ring_differs, source_indices, new_index, last_ring_write_at,
+            probe_skipped, config_cache_cleaned, last_scan, overrides, history and next_commands. run_id and state
+            are null when the store has no run.
             HELP);
     }
 
