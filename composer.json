@@ -1,0 +1,101 @@
+{
+    "name": "hryvinskyi/magento2-encryption-key-rotator",
+    "description": "Standalone tool that rotates a Magento 2 encryption key, re-encrypts stored values and can roll the rotation back.",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Volodymyr Hryvinskyi",
+            "email": "volodymyr@hryvinskyi.com"
+        }
+    ],
+    "require": {
+        "php": ">=8.1",
+        "ext-json": "*",
+        "ext-pdo": "*",
+        "ext-pdo_mysql": "*",
+        "ext-sodium": "*",
+        "hollodotme/fast-cgi-client": "^3.1",
+        "psr/clock": "^1.0",
+        "symfony/clock": "^6.4",
+        "symfony/config": "^6.4",
+        "symfony/console": "^6.4",
+        "symfony/dependency-injection": "^6.4",
+        "symfony/event-dispatcher": "^6.4",
+        "symfony/http-client": "^6.4",
+        "symfony/polyfill-php82": "^1.28",
+        "symfony/process": "^6.4"
+    },
+    "require-dev": {
+        "deptrac/deptrac": "^2",
+        "friendsofphp/php-cs-fixer": "^3",
+        "phpstan/phpstan": "^2.1",
+        "phpstan/phpstan-phpunit": "^2.0",
+        "phpunit/phpunit": "^10.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hryvinskyi\\EncryptionKeyRotator\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Hryvinskyi\\EncryptionKeyRotator\\Tests\\": "tests/"
+        }
+    },
+    "bin": [
+        "bin/key-rotator"
+    ],
+    "config": {
+        "platform": {
+            "php": "8.1.0"
+        },
+        "process-timeout": 0,
+        "sort-packages": true
+    },
+    "scripts": {
+        "phpstan": "phpstan analyse --no-progress --memory-limit=1G",
+        "deptrac": "deptrac analyse --no-progress",
+        "cs": "php-cs-fixer fix --dry-run --diff",
+        "cs:fix": "php-cs-fixer fix",
+        "test:unit": "phpunit --testsuite unit,contract",
+        "test:integration": [
+            "docker compose run --rm -e DB_SERVICE=mariadb php81 vendor/bin/phpunit --testsuite integration",
+            "docker compose run --rm -e DB_SERVICE=mysql php81 vendor/bin/phpunit --testsuite integration",
+            "docker compose run --rm -e DB_SERVICE=mariadb php83 vendor/bin/phpunit --testsuite integration",
+            "docker compose run --rm -e DB_SERVICE=mysql php83 vendor/bin/phpunit --testsuite integration"
+        ],
+        "test:compat": [
+            "@php tools/compat-gate.php",
+            "phpunit --testsuite compatibility"
+        ],
+        "build": [
+            "@build:phar",
+            "@build:smoke"
+        ],
+        "build:phar": "@php build/compile.php",
+        "build:smoke": [
+            "docker compose run --rm -e DB_SERVICE=mariadb php81 php build/smoke.php",
+            "docker compose run --rm -e DB_SERVICE=mysql php83 php build/smoke.php"
+        ],
+        "check": [
+            "@phpstan",
+            "@deptrac",
+            "@cs",
+            "@test:unit"
+        ]
+    },
+    "scripts-descriptions": {
+        "phpstan": "Static analysis at level 10 for PHP 8.1.",
+        "deptrac": "Layer boundaries: zero violations, no baseline.",
+        "cs": "Coding standard (PER-CS 2.0), dry run.",
+        "cs:fix": "Apply the coding standard.",
+        "test:unit": "Unit tests and the contract tests of the in-memory doubles, on the host PHP.",
+        "test:integration": "Integration tests on PHP 8.1 and 8.3 against MariaDB 10.6 and MySQL 8.0.",
+        "test:compat": "Compatibility tests against a real Magento root (MAGENTO_ROOT required, MAGENTO_PHP optional).",
+        "build": "Compile the container, pack the phar and start it on PHP 8.1 and 8.3.",
+        "build:phar": "Compile the container and pack build/key-rotator.phar.",
+        "build:smoke": "Run the packed phar on PHP 8.1 and 8.3: about, and scan --format=json against a seeded store.",
+        "check": "phpstan + deptrac + cs + unit tests."
+    }
+}

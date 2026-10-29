@@ -1,0 +1,43 @@
+<?php
+
+/*
+ * Stands in for a store's bin/magento in the end-to-end tests. It records every call in
+ * var/bin-magento.log and answers like the real command line, with two behaviours a test switches on:
+ * - `queue:consumers:start <name> <seconds>` keeps running that long, like a long-running store command
+ *   that still holds the key ring it started with;
+ * - when var/kill-on-cache-clean exists, the next `cache:clean config` deletes it and kills the tool that
+ *   called it with SIGKILL, the way a crash or an operator's kill -9 would stop it mid-step.
+ */
+
+declare(strict_types=1);
+
+$root = dirname(__DIR__);
+$arguments = array_slice($argv, 1);
+file_put_contents($root . '/var/bin-magento.log', implode(' ', $arguments) . "\n", FILE_APPEND | LOCK_EX);
+
+if (($arguments[0] ?? '') === 'queue:consumers:start') {
+    sleep((int) ($arguments[2] ?? 60));
+    exit(0);
+}
+
+$hook = $root . '/var/kill-on-cache-clean';
+if ($arguments === ['cache:clean', 'config'] && is_file($hook)) {
+    unlink($hook);
+    $pid = posix_getppid();
+    while ($pid > 1) {
+        $commandLine = (string) @file_get_contents('/proc/' . $pid . '/cmdline');
+        if (str_contains($commandLine, 'key-rotator')) {
+            posix_kill($pid, 9);
+            exit(1);
+        }
+        $status = (string) @file_get_contents('/proc/' . $pid . '/status');
+        $pid = preg_match('/^PPid:\s+(\d+)/m', $status, $match) === 1 ? (int) $match[1] : 0;
+    }
+    fwrite(STDERR, "No key-rotator process among the ancestors.\n");
+    exit(1);
+}
+
+if ($arguments === ['cache:clean', 'config']) {
+    echo "Cleaned cache types:\nconfig\n";
+}
+exit(0);

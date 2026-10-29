@@ -1,0 +1,7 @@
+/vendor/
+/build/out/
+/build/tools/
+.phpunit.cache
+.php-cs-fixer.cache
+*.phar
+.deptrac.cache

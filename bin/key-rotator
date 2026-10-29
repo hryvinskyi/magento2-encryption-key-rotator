@@ -1,0 +1,60 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/*
+ * Composition root of the tool: loads the compiled service container and runs the console application.
+ *
+ * Inside the phar the container was compiled when the phar was built; in a source checkout it is
+ * compiled here, through the same builder, into build/out/.
+ */
+
+use Hryvinskyi\EncryptionKeyRotator\DependencyInjection\ContainerFactory;
+use Symfony\Component\Console\Application;
+use Symfony\Component\DependencyInjection\ContainerInterface;
+
+// Before anything else: stack traces must never carry argument values, which may be key bytes or
+// plaintext. PHP 8.1 knows no #[\SensitiveParameter], so dropping all arguments is the only guarantee.
+ini_set('zend.exception_ignore_args', '1');
+
+$projectDirectory = dirname(__DIR__);
+$autoloaders = [$projectDirectory . '/vendor/autoload.php', dirname($projectDirectory, 2) . '/autoload.php'];
+$autoloaded = false;
+foreach ($autoloaders as $autoloader) {
+    if (is_file($autoloader)) {
+        require $autoloader;
+        $autoloaded = true;
+        break;
+    }
+}
+if (!$autoloaded) {
+    fwrite(STDERR, "Dependencies are not installed: run composer install.\n");
+    exit(1);
+}
+
+$buildDirectory = $projectDirectory . '/build/out';
+$insidePhar = class_exists(Phar::class) && Phar::running(false) !== '';
+if (!$insidePhar) {
+    $bootstrapFile = (new ContainerFactory(
+        $projectDirectory . '/config/services.php',
+        ['Hryvinskyi\\EncryptionKeyRotator\\' => $projectDirectory . '/src'],
+    ))->dump($buildDirectory);
+} else {
+    $bootstrapFile = $buildDirectory . '/' . ContainerFactory::BOOTSTRAP_FILE;
+}
+
+// The generated bootstrap loads build/out/Container.php and returns an instance of the container.
+$container = require $bootstrapFile;
+if (!$container instanceof ContainerInterface) {
+    fwrite(STDERR, "The compiled service container could not be loaded.\n");
+    exit(1);
+}
+
+$application = $container->get(Application::class);
+if (!$application instanceof Application) {
+    fwrite(STDERR, "The container holds no console application.\n");
+    exit(1);
+}
+
+exit($application->run());

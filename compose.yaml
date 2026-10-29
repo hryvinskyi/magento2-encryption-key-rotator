@@ -1,0 +1,56 @@
+# Test environment: PHP 8.1 and 8.3 (CLI + FPM) against MariaDB 10.6 and MySQL 8.0.
+#
+# APP_SOURCE is the path of this repository as the Docker daemon sees it. It defaults to the current
+# directory; set it when the daemon runs on another machine and the repository is synchronised there.
+
+x-php: &php
+  working_dir: /app
+  volumes:
+    - ${APP_SOURCE:-.}:/app
+  environment:
+    DB_SERVICE: ${DB_SERVICE:-mariadb}
+    DB_NAME: ${DB_NAME:-key_rotator_test}
+    DB_USER: root
+    DB_PASSWORD: ${DB_ROOT_PASSWORD:-key-rotator-test}
+  depends_on:
+    mariadb:
+      condition: service_healthy
+    mysql:
+      condition: service_healthy
+
+services:
+  php81:
+    <<: *php
+    build:
+      context: docker/php
+      args:
+        PHP_VERSION: "8.1"
+
+  php83:
+    <<: *php
+    build:
+      context: docker/php
+      args:
+        PHP_VERSION: "8.3"
+
+  mariadb:
+    image: mariadb:10.6
+    environment:
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-key-rotator-test}
+      MARIADB_DATABASE: ${DB_NAME:-key_rotator_test}
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-key-rotator-test}
+      MYSQL_DATABASE: ${DB_NAME:-key_rotator_test}
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 2s
+      timeout: 5s
+      retries: 60

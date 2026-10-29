@@ -1,0 +1,49 @@
+deptrac:
+  paths:
+    - ./src
+  layers:
+    - name: Kernel
+      collectors:
+        - type: directory
+          value: src/Kernel/.*
+    - name: Domain
+      collectors:
+        - type: directory
+          value: src/Domain/.*
+    - name: Application
+      collectors:
+        - type: directory
+          value: src/Application/.*
+    - name: Infrastructure
+      collectors:
+        - type: directory
+          value: src/Infrastructure/.*
+    - name: Cli
+      collectors:
+        - type: directory
+          value: src/Cli/.*
+    - name: DependencyInjection
+      collectors:
+        - type: directory
+          value: src/DependencyInjection/.*
+  ruleset:
+    Kernel: ~
+    Domain:
+      - Kernel
+    Application:
+      - Domain
+      - Kernel
+    Infrastructure:
+      - Application
+      - Domain
+      - Kernel
+    Cli:
+      - Application
+      - Domain
+      - Kernel
+    DependencyInjection:
+      - Kernel
+      - Domain
+      - Application
+      - Infrastructure
+      - Cli

@@ -1,0 +1,2 @@
+<?php
+return 'a deployment configuration that is not an array';
