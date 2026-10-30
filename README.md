@@ -184,6 +184,9 @@ Zeroing files before deleting them is best effort on journaling, copy-on-write a
   the last 15 minutes). `--ignore-workers` overrides this, and the run records it.
 - Keep admins away from **System > Encryption Key** and **Cache Management** until the run is retired. A PHP-FPM
   worker with an old copy of `env.php` can write the old key ring back.
+- **Restart PHP-FPM on every web node** after each step that changes the key ring, unless you know every node reads
+  `env.php` afresh. The web probe reaches one node. A node that still holds the old ring can't decrypt the moved
+  values, so a payment method or an API key reads as empty, and the store keeps running.
 - If a deploy pipeline or your hosting provider rewrites `env.php` from its own copy, give them the file the tool
   wrote after every step that changes the key ring, before the next deploy. After that deploy, `status` warns if the
   copy they put back is not the one the run wrote.
@@ -207,6 +210,12 @@ A store has at most one unfinished run, whatever state directory each command is
 in the table `<prefix>encryption_key_rotation_run` and keeps the claim until it is purged. A rolled-back run
 therefore has to be purged before the next rotation. Old values are journaled in
 `<prefix>encryption_key_rotation_journal`, whose rows `purge` deletes. Both tables honour `db/table_prefix`.
+
+`setup:upgrade` and `setup:db:status` read the definition of every table in the database, these two included, so
+their columns only use types Magento's declarative schema can read. Release 1.0.1 created the journal's `direction`
+column as an `ENUM`, which stops both commands, and with them a deploy. From 1.0.2, `rotate`, `retire`, `rollback`
+and `purge` convert such a journal to `VARCHAR` and keep its entries. To unblock a deploy before that:
+`ALTER TABLE <prefix>encryption_key_rotation_journal MODIFY direction VARCHAR(8) NOT NULL`.
 
 ## Building from source
 

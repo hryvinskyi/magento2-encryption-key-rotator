@@ -14,6 +14,10 @@ use Hryvinskyi\EncryptionKeyRotator\Application\Port\JournalSchema;
  * - `direction` tells a forward write from a write back to the key active before the run;
  * - `reverted_at` is set once a forward entry is reverted or superseded, and only pending entries
  *   (forward, `reverted_at` null) are ever undone.
+ *
+ * Every column has a type Magento's declarative schema can read. Magento reads the definition of every
+ * table in the database on `setup:upgrade` and `setup:db:status`, and one column it cannot read, an
+ * ENUM for instance, stops both for the whole store.
  */
 final class JournalTable implements JournalSchema
 {
@@ -25,6 +29,12 @@ final class JournalTable implements JournalSchema
 
     public function ensure(): void
     {
+        $this->create();
+        $this->convertEnumDirection();
+    }
+
+    private function create(): void
+    {
         $this->statements->define(sprintf(
             'CREATE TABLE IF NOT EXISTS %s ('
             . 'entry_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,'
@@ -34,13 +44,29 @@ final class JournalTable implements JournalSchema
             . ' row_key TEXT NOT NULL,'
             . ' old_value LONGBLOB NOT NULL,'
             . ' new_value LONGBLOB NOT NULL,'
-            . ' direction ENUM(\'forward\', \'back\') NOT NULL,'
+            . ' direction VARCHAR(8) NOT NULL,'
             . ' reverted_at DATETIME NULL,'
             . ' created_at DATETIME NOT NULL,'
             . ' KEY run_reverted (run_id, reverted_at)'
             . ') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
             $this->names->journal(),
         ));
+    }
+
+    /**
+     * Release 1.0.1 created `direction` as an ENUM; the values it holds fit the VARCHAR unchanged.
+     */
+    private function convertEnumDirection(): void
+    {
+        $rows = $this->values->all($this->statements->run(
+            'SELECT COUNT(*) AS enum_count FROM information_schema.COLUMNS'
+            . ' WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ? AND DATA_TYPE = ?',
+            [$this->names->physical(TableNames::JOURNAL), 'direction', 'enum'],
+        ));
+        if ($this->values->int($rows[0] ?? [], 'enum_count') === 0) {
+            return;
+        }
+        $this->statements->define(sprintf('ALTER TABLE %s MODIFY direction VARCHAR(8) NOT NULL', $this->names->journal()));
     }
 
     /**

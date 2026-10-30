@@ -10,7 +10,8 @@ namespace Hryvinskyi\EncryptionKeyRotator\Application\Port;
 interface JournalSchema
 {
     /**
-     * Creates the journal when it does not exist; leaves an existing one as it is.
+     * Creates the journal when it does not exist, and brings one an earlier release created to the
+     * current shape; the entries it holds stay as they are.
      */
     public function ensure(): void;
 }

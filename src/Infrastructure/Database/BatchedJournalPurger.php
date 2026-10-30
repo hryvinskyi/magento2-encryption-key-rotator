@@ -26,6 +26,8 @@ final class BatchedJournalPurger implements JournalPurger
         if (!$this->journal->exists()) {
             return 0;
         }
+        // Entries of other runs can keep the table: it leaves in the shape the store can read.
+        $this->journal->ensure();
         $deleted = 0;
         do {
             $batch = $this->statements->run(
