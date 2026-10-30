@@ -24,6 +24,7 @@ use Hryvinskyi\EncryptionKeyRotator\Application\UseCase\Scan\ScanEncryptedData;
 use Hryvinskyi\EncryptionKeyRotator\Application\UseCase\WebTier\WebTierConfirmation;
 use Hryvinskyi\EncryptionKeyRotator\Domain\Key\InvalidKey;
 use Hryvinskyi\EncryptionKeyRotator\Domain\Key\InvalidKeyRing;
+use Hryvinskyi\EncryptionKeyRotator\Domain\Key\KeyRing;
 use Hryvinskyi\EncryptionKeyRotator\Domain\Key\Key;
 use Hryvinskyi\EncryptionKeyRotator\Domain\Key\KeyFactory;
 use Hryvinskyi\EncryptionKeyRotator\Domain\Key\KeyRingChangeRefused;
@@ -55,7 +56,9 @@ use Psr\Clock\ClockInterface;
  * an old key); a resumed run claims the store again, so another run holding it refuses the resume. A run
  * that is rolling back, retiring its old keys or retired is refused. A dry run scans and reports the plan
  * without taking the lock, starting a run or writing anything; another run holding the store is among
- * the refusals it lists.
+ * the refusals it lists. When a probe transport is chosen it also asks the web tier once, as the baseline
+ * probe of a new rotation would, so a probe that cannot reach PHP-FPM is a refusal of the plan rather than
+ * of the real run; the one-off probe file it places is removed again.
  *
  * Every refusal is a result, never an exception; the call holds the run store's lock throughout.
  */
@@ -113,6 +116,14 @@ final class RotateKey
         if ($claimed !== null) {
             $refusals[] = $claimed;
         }
+        $probe = null;
+        $settings = $request->probeSettings();
+        if (!$settings->isSkipped() && $settings->transport() !== null) {
+            $probe = $this->webTier->once($ring);
+            if (!$probe->matches()) {
+                $refusals[] = $this->baselineProbeFailed($ring, $probe);
+            }
+        }
         $this->progress->step('Scanning the values a rotation would move');
         $scan = $this->scanner->scan($this->scopes->create([]), [], $request->batchSize());
         $sources = [...$ring->usableOldIndices(), $ring->activeIndex()];
@@ -122,6 +133,7 @@ final class RotateKey
             scan: $scan,
             refusals: $refusals,
             workers: $checks->workers(),
+            probe: $probe,
             sourceIndices: $sources,
             newIndex: $ring->activeIndex() + 1,
             ringFingerprint: $ring->fingerprint(),
@@ -145,12 +157,7 @@ final class RotateKey
         if (!$request->probeSettings()->isSkipped()) {
             $probe = $this->webTier->once($ring);
             if (!$probe->matches()) {
-                return $this->refused(null, [$this->refusals->create(RefusalReason::BaselineProbeFailed, sprintf(
-                    'The web tier did not confirm the current key ring %s (%s): %s Nothing was written.',
-                    $ring->fingerprint(),
-                    $probe->status()->value,
-                    $probe->reason(),
-                ))], $checks->workers(), $probe);
+                return $this->refused(null, [$this->baselineProbeFailed($ring, $probe)], $checks->workers(), $probe);
             }
         }
 
@@ -274,6 +281,16 @@ final class RotateKey
             $request->allowsOtherUser(),
             $request->probeSettings(),
         );
+    }
+
+    private function baselineProbeFailed(KeyRing $ring, ProbeOutcome $probe): Refusal
+    {
+        return $this->refusals->create(RefusalReason::BaselineProbeFailed, sprintf(
+            'The web tier did not confirm the current key ring %s (%s): %s Nothing was written.',
+            $ring->fingerprint(),
+            $probe->status()->value,
+            $probe->reason(),
+        ));
     }
 
     private function recordWaived(RotationRun $run, PreflightResult $checks): void

@@ -75,6 +75,7 @@ final class RotatePresenter
         }
         $this->sections->refusals($output, $result->refusals());
         $this->sections->workers($output, $result->workers());
+        $this->sections->probe($output, $result->probe());
     }
 
     private function closing(RotateResult $result, OutputInterface $output, string $storeOptions, string $probeOptions): void

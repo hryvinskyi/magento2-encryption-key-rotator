@@ -26,6 +26,7 @@ interface RotateResultFactory
      *
      * @param list<Refusal>        $refusals      what would refuse the rotation now
      * @param list<RunningProcess> $workers
+     * @param ProbeOutcome|null    $probe         the web tier's answer, when a probe transport was chosen
      * @param list<int>            $sourceIndices
      */
     public function dryRun(
@@ -33,6 +34,7 @@ interface RotateResultFactory
         ScanReport $scan,
         array $refusals,
         array $workers,
+        ?ProbeOutcome $probe,
         array $sourceIndices,
         int $newIndex,
         string $ringFingerprint,

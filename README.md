@@ -195,6 +195,11 @@ Zeroing files before deleting them is best effort on journaling, copy-on-write a
   have to be replaced at their provider. Re-encrypting them does not make them secret again.
 - Keyed hashes that modules store change with the active key, for example Magento's indexer configuration hash. Plan
   a full reindex after the next `setup:upgrade`.
+- **On Magento 2.4.6 and older**, the cache directory of every resized product image is a keyed hash of the active key,
+  so `rotate` would make the store generate its whole image cache again. Install
+  [magento2-encryption-key-manager](https://github.com/hryvinskyi/magento2-encryption-key-manager) and pin the key
+  first (`bin/magento encryption:hash-key:pin`). The same module signs JSON web tokens with the newest key only on
+  releases without that fix, and can log decryptions under an old key between `rotate` and `retire`.
 
 ## One run per store
 

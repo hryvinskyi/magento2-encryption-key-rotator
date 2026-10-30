@@ -52,7 +52,7 @@ final class RotateCommand extends Command
         $this->options->addIgnoreWorkersOption($this);
         $this->options->addConfirmationOption($this);
         $this
-            ->addOption(self::DRY_RUN, null, InputOption::VALUE_NONE, 'Scan and print the plan; write nothing')
+            ->addOption(self::DRY_RUN, null, InputOption::VALUE_NONE, 'Scan, ask the web tier once when a probe option is given, and print the plan; write nothing')
             ->addOption(self::KEY_FILE, null, InputOption::VALUE_REQUIRED, 'Append the key in this file (its ring entry, mode 0600) instead of a random one');
         $this->setHelp(<<<'HELP'
             Appends a new key to the ring in app/etc/env.php, waits until the web tier (PHP-FPM) holds the new ring,

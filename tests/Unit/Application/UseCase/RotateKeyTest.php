@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hryvinskyi\EncryptionKeyRotator\Tests\Unit\Application\UseCase;
 
+use Hryvinskyi\EncryptionKeyRotator\Application\Model\ProbeSettings;
 use Hryvinskyi\EncryptionKeyRotator\Application\Model\ColumnRef;
 use Hryvinskyi\EncryptionKeyRotator\Application\Model\Direction;
 use Hryvinskyi\EncryptionKeyRotator\Application\Model\KeptKeyRole;
@@ -162,7 +163,37 @@ final class RotateKeyTest extends TestCase
         self::assertFalse($result->bearerTokensInvalidated());
         self::assertSame($before, $this->storedValues());
         $this->assertNothingWritten();
+        self::assertSame([$world->ringBefore->fingerprint()], $world->probe->observed(), 'Asked once, for the current ring.');
+        self::assertSame('matches', $result->probe()?->status()->value);
+    }
+
+    public function testADryRunListsAProbeThatDoesNotReachTheWebTier(): void
+    {
+        $world = $this->world;
+        $world->probe->enqueue($world->differs());
+
+        $result = $world->rotate($world->request(dryRun: true));
+
+        self::assertSame(RotateStatus::DryRun, $result->status());
+        self::assertSame([RefusalReason::BaselineProbeFailed], $this->reasons($result));
+        self::assertSame('differs', $result->probe()?->status()->value);
+        self::assertSame([1 => 4, 2 => 5], $result->scan()?->summary()->verifiedPerIndex(), 'The plan is still scanned.');
+        $this->assertNothingWritten();
+    }
+
+    public function testADryRunWithTheProbeSkippedOrUnchosenAsksNobody(): void
+    {
+        $world = $this->world;
+        $unchosen = new ProbeSettings(null, null, null, ProbeSettings::DEFAULT_DOCROOT, true, 30, false);
+
+        $skipped = $world->rotate($world->request(dryRun: true, probeSettings: $world->probeSettings(skipped: true)));
+        $none = $world->rotate($world->request(dryRun: true, probeSettings: $unchosen));
+
         self::assertSame([], $world->probe->observed());
+        self::assertNull($skipped->probe());
+        self::assertNull($none->probe());
+        self::assertSame([], $skipped->refusals());
+        self::assertSame([], $none->refusals());
     }
 
     public function testADryRunListsWhatWouldRefuseTheRotation(): void
